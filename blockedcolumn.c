@@ -190,12 +190,14 @@ int get_offset(int round, int mpi_rank, int sub_size, int num_processes, int all
 
 void multiply_matrix_blocked(int sub_size, int num_processes, int mpi_rank, int all_cols_no,
                      dense_type *C, sparse_type *As, dense_type *B) {
+    if (mpi_rank == 0) printf("AS %d\n", As);
+    sparse_type* Atmp = As;
     sparse_type *recv = malloc(sizeof(sparse_type)); //TODO free
     recv->rows_no = As->rows_no;
     recv->IA = malloc((As->rows_no + 1) * sizeof(int)); //TODO free
 
     MPI_Request req[4];
-    int i, j;
+    int i;
     int c = num_processes / sub_size;
     int destination = (mpi_rank + (c - 1) * sub_size) % num_processes;
     int source = (mpi_rank + sub_size) % num_processes;
@@ -205,13 +207,12 @@ void multiply_matrix_blocked(int sub_size, int num_processes, int mpi_rank, int 
         int row_B_offset = get_offset(i, mpi_rank, sub_size, num_processes, all_cols_no, c);
         calculate_single_round_blocked(row_B_offset, sub_size, num_processes, mpi_rank, C, As, B);
         receive_sparse_rows_no(source, As->rows_no, recv);
-        for (j = 0; j < 4; j++) {
-            MPI_Wait(req + j, MPI_STATUS_IGNORE);
-        }
+        MPI_Waitall(4, req, MPI_STATUS_IGNORE);
         sparse_type *tmp = recv;
         recv = As;
         As = tmp;
     }
+    As = Atmp;
 }
 
 void compute_matrix_blocked(int exponent, int sub_size, int num_processes, int mpi_rank, int all_cols_no,
@@ -222,7 +223,28 @@ void compute_matrix_blocked(int exponent, int sub_size, int num_processes, int m
         for (i = 0; i < C->cols_no * C->rows_no; i++) {
             C->vals[i] = 0;
         }
-        multiply_matrix_blocked(sub_size, num_processes, mpi_rank, all_cols_no, C, As, B);
+
+        //
+        sparse_type *recv = malloc(sizeof(sparse_type)); //TODO free
+        recv->rows_no = As->rows_no;
+        recv->IA = malloc((As->rows_no + 1) * sizeof(int)); //TODO free
+
+        MPI_Request req[4];
+        int c = num_processes / sub_size;
+        int destination = (mpi_rank + (c - 1) * sub_size) % num_processes;
+        int source = (mpi_rank + sub_size) % num_processes;
+
+        for (i = 0; i < c; i++) {
+            send_sparse_async(req, destination, As);
+            int row_B_offset = get_offset(i, mpi_rank, sub_size, num_processes, all_cols_no, c);
+            calculate_single_round_blocked(row_B_offset, sub_size, num_processes, mpi_rank, C, As, B);
+            receive_sparse_rows_no(source, As->rows_no, recv);
+            MPI_Waitall(4, req, MPI_STATUS_IGNORE);
+            sparse_type *tmp = recv;
+            recv = As;
+            As = tmp;
+        }
+        //
         copy_dense(C, B);
     }
 }

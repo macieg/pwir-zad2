@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include "utils.h"
 #include "densematgen.h"
+#include "assert.h"
 
 //dla danego procesy zwraca liczbe kolumn w podzielonym A
 int proc_to_cols_no(int mpi_rank, int num_processes, int cols_no) {
@@ -146,8 +147,8 @@ void free_dense(dense_type *m) {
 
 void copy_dense(dense_type *source, dense_type *destination) {
     int i;
-    destination->rows_no = source->rows_no;
-    destination->cols_no = source->cols_no;
+    assert(destination->rows_no == source->rows_no);
+    assert(destination->cols_no == source->cols_no);
     for (i = 0; i < source->rows_no * source->cols_no; i++) {
         destination->vals[i] = source->vals[i];
     }
@@ -210,7 +211,7 @@ void DEBUG_DENSE(int mpi_rank, dense_type *d) {
     printf("==========================PROCES %d==========================\n", mpi_rank);
     for (i = 0; i < d->rows_no; i++) {
         for (j = 0; j < d->cols_no; j++) {
-            printf("%.0lf ", d->vals[i * d->cols_no + j]);
+            printf("%.4lf ", d->vals[i * d->cols_no + j]);
         }
         printf("\n");
     }
