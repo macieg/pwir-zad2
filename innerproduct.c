@@ -74,9 +74,7 @@ void broadcast_A_B_parts_in_groups(int mpi_rank, sparse_type *As, sparse_type *A
     }
     MPI_Allgatherv(&(A->rows_no), 1, MPI_INT, &(As[0].rows_no), recvcounts, displs, MPI_INT, *sub_comm);
 
-
     for (i = 0; i < sub_size; i++) {
-        As[i].rows_no = A->rows_no;
         As[i].IA = malloc((As[i].rows_no + 1) * sizeof(int));
         displs[i] = (As[i].IA - As[0].IA); //offsety w strukturze
         recvcounts[i] = As[i].rows_no + 1;
@@ -84,7 +82,6 @@ void broadcast_A_B_parts_in_groups(int mpi_rank, sparse_type *As, sparse_type *A
     MPI_Allgatherv(A->IA, A->rows_no + 1, MPI_INT, As[0].IA, recvcounts, displs, MPI_INT, *sub_comm);
 
     for (i = 0; i < sub_size; i++) {
-        As[i].rows_no = A->rows_no;
         recvcounts[i] = As[i].IA[As[i].rows_no];
         As[i].JA = malloc(recvcounts[i] * sizeof(int)); //TODO free
         As[i].A = malloc(recvcounts[i] * sizeof(double)); //TODO free
@@ -102,7 +99,6 @@ void broadcast_A_B_parts_in_groups(int mpi_rank, sparse_type *As, sparse_type *A
     }
     MPI_Allgatherv(A->A, A->IA[A->rows_no], MPI_DOUBLE, As[0].A, recvcounts, displs, MPI_DOUBLE, *sub_comm);
 
-//    printf("mpi_rank = %d\n", mpi_rank);
     MPI_Barrier(MPI_COMM_WORLD);
     //wysylamy B
     for (i = 0; i < sub_size; i++) {
@@ -259,10 +255,8 @@ void multiply_matrix_inner(int sub_size, int num_processes, int mpi_rank, int al
 
     int row_C_offset = first_index(((layer * q + col_idx) * sub_size) % num_processes, all_cols_no, num_processes);
     for (i = 0; i < q; i++) {
-//        if (mpi_rank == 2) {printf("jakto %d %d\n", A->rows_no, A->cols_no); DEBUG_SPARSE_CSR(mpi_rank, A);}
         send_sparse_async_inner(req, destination, A);
         calculate_single_round_inner(row_C_offset, sub_size, num_processes, mpi_rank, all_cols_no, C, A, B);
-//        printf("1 mpi_rank = %d\n", mpi_rank);
         row_C_offset += A->rows_no;
         receive_sparse_rows_no_inner(source, recv);
         MPI_Waitall(5, req, MPI_STATUS_IGNORE);
@@ -271,13 +265,6 @@ void multiply_matrix_inner(int sub_size, int num_processes, int mpi_rank, int al
         A = tmp;
     }
 
-//        sleep(mpi_rank);
-//        DEBUG_SPARSE(mpi_rank, A);
-//        DEBUG_DENSE(mpi_rank, B);
-//        DEBUG_DENSE(mpi_rank, C);
-
-
-//    printf("mpi_rank = %d\n", mpi_rank);
     int size = C->rows_no * C->cols_no;
     double *buff = malloc(size * sizeof(double));
     MPI_Allreduce(C->vals, buff, size, MPI_DOUBLE, MPI_SUM, *sub_comm);
@@ -313,7 +300,7 @@ void sendrecv_sparse(int mpi_rank, int source, int destination, sparse_type *A, 
 void compute_matrix_inner(int exponent, int sub_size, int num_processes, int mpi_rank, int all_cols_no, MPI_Comm *sub_comm,
                             dense_type *C, sparse_type *A, dense_type *B) {
     alloc_dense(B->cols_no, B->rows_no, C); //TODO free
-    sleep(mpi_rank);
+
     //init shift
     int q = num_processes / sub_size / sub_size;
     int layer = mpi_rank % sub_size;
@@ -330,11 +317,11 @@ void compute_matrix_inner(int exponent, int sub_size, int num_processes, int mpi
         for (i = 0; i < C->cols_no * C->rows_no; i++) {
             C->vals[i] = 0;
         }
+        C->vals[0] = 0;
+        printf("mpi_rank = %d, rows_no = %d, cols_no = %d\n", mpi_rank, C->rows_no, C->cols_no);
         multiply_matrix_inner(sub_size, num_processes, mpi_rank, all_cols_no, sub_comm, C, A, B);
         copy_dense(C, B);
     }
-//    sleep(mpi_rank);
-//    DEBUG_DENSE(mpi_rank, C);
 }
 
 void gather_and_show_results_inner(int mpi_rank, int sub_size, int num_processes, dense_type *C) {
