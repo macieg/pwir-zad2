@@ -4,11 +4,12 @@ LDFLAGS = -Wall -O3 --std=c99
 ALL     = matrixmul
 MATGENFILE = densematgen.o
 UTILSFILE = utils.o
-INNERCOLUMN = innercolumn.o
+BLOCKEDCOLUMN = blockedcolumn.o
+INNERPRODUCT = innerproduct.o
 
 all: $(ALL)
 
-$(ALL): %: %.o $(MATGENFILE) $(UTILSFILE) $(INNERCOLUMN)
+$(ALL): %: %.o $(MATGENFILE) $(UTILSFILE) $(BLOCKEDCOLUMN) $(INNERPRODUCT)
 	$(CC) $(LDFLAGS) $^ -o $@
 
 %.o: %.c matgen.h Makefile

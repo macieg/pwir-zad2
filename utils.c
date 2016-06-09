@@ -1,6 +1,104 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "utils.h"
+#include "densematgen.h"
+
+//dla danego procesy zwraca liczbe kolumn w podzielonym A
+int proc_to_cols_no(int mpi_rank, int num_processes, int cols_no) {
+    int cpp = cols_no / num_processes; //podstawa
+    int more = cols_no % num_processes; //liczba procesow ktorym dodamy 1 (pierwsze z brzegu)
+
+    return cpp + ((mpi_rank < more) ? 1 : 0);
+}
+
+void send_sparse_async(MPI_Request *req, int desination, sparse_type *msg) {
+    MPI_Isend(&(msg->cols_no), 1, MPI_INT, desination, COLS_NO_TAG, MPI_COMM_WORLD, req + 3);
+    MPI_Isend(msg->IA, msg->rows_no + 1, MPI_INT, desination, IA_TAG, MPI_COMM_WORLD, req);
+    MPI_Isend(msg->JA, msg->IA[msg->rows_no], MPI_INT, desination, JA_TAG, MPI_COMM_WORLD, req + 1);
+    MPI_Isend(msg->A, msg->IA[msg->rows_no], MPI_DOUBLE, desination, A_TAG, MPI_COMM_WORLD, req + 2);
+}
+
+void receive_sparse_rows_no(int source, int rows_no, sparse_type *msg) {
+    int nnz;
+    msg->rows_no = rows_no;
+    msg->IA = malloc((rows_no + 1) * sizeof(int)); //TODO free
+
+    MPI_Recv(msg->IA, rows_no + 1, MPI_INT, source, IA_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    nnz = msg->IA[rows_no];
+
+    msg->JA = malloc(nnz * sizeof(int)); //TODO free
+    msg->A = malloc(nnz * sizeof(double)); //TODO free
+
+    MPI_Recv(msg->JA, nnz, MPI_INT, source, JA_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(msg->A, nnz, MPI_DOUBLE, source, A_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&(msg->cols_no), 1, MPI_DOUBLE, source, COLS_NO_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+}
+
+void send_sparse(int desination, sparse_type *msg) {
+    MPI_Send(&(msg->rows_no), 1, MPI_INT, desination, 0, MPI_COMM_WORLD);
+    MPI_Send(&(msg->cols_no), 1, MPI_INT, desination, 0, MPI_COMM_WORLD);
+    MPI_Send(msg->IA, msg->rows_no + 1, MPI_INT, desination, 0, MPI_COMM_WORLD);
+    MPI_Send(msg->JA, msg->IA[msg->rows_no], MPI_INT, desination, 0, MPI_COMM_WORLD);
+    MPI_Send(msg->A, msg->IA[msg->rows_no], MPI_DOUBLE, desination, 0, MPI_COMM_WORLD);
+}
+
+void receive_sparse(int source, sparse_type *msg) {
+    int size;
+    MPI_Status status;
+    MPI_Recv(&(msg->rows_no), 1, MPI_INT, source, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    MPI_Recv(&(msg->cols_no), 1, MPI_INT, source, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    msg->IA = malloc((msg->rows_no + 1) * sizeof(int));
+    MPI_Probe(0, 0, MPI_COMM_WORLD, &status);
+    MPI_Get_count(&status, MPI_INT, &size);
+    MPI_Recv(msg->IA, size, MPI_INT, source, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    msg->JA = malloc((msg->IA[msg->rows_no]) * sizeof(int));
+    MPI_Probe(0, 0, MPI_COMM_WORLD, &status);
+    MPI_Get_count(&status, MPI_INT, &size);
+    MPI_Recv(msg->JA, size, MPI_INT, source, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    msg->A = malloc((msg->IA[msg->rows_no]) * sizeof(double));
+    MPI_Probe(0, 0, MPI_COMM_WORLD, &status);
+    MPI_Get_count(&status, MPI_DOUBLE, &size);
+    MPI_Recv(msg->A, size, MPI_DOUBLE, source, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+}
+
+//dla danej kolumny macierzy czesciowej procesu zwraca jej indeks w macierzy globalnej
+int col_part_to_col(int col_no, int mpi_rank, int num_processes, int cols_no) {
+    int cpp = cols_no / num_processes; //podstawa
+    int more = cols_no % num_processes; //liczba procesow ktorym dodamy 1 (pierwsze z brzegu)
+
+    int procmorecols = more * (cpp+1); //liczba kolumn zabranych przez procesy z wieksza iloscia kolumn
+    if (mpi_rank < more) { //indeks w kolumnie procesu z wieksza iloscia kolumn
+        return mpi_rank * (cpp+1) + col_no;
+    } else { //indeks w kolumnie procesu z mniejsza iloscia kolumn
+//        if (mpi_rank == 1) {printf("procmorecols=%d + (mpi_rank=%d - more=%d) * cpp=%d + cols_no=%d\n", procmorecols, mpi_rank, more, cpp, cols_no);}
+        return procmorecols + (mpi_rank - more) * cpp + col_no;
+    }
+}
+
+void generate_dense(dense_type *dense, int rows_no, int cols_no, int mpi_rank, int num_processes, int gen_seed) {
+    dense->cols_no = cols_no;
+    dense->rows_no = rows_no;
+    dense->vals = malloc(dense->rows_no * dense->cols_no * sizeof(double));
+    int i, j;
+    for (i = 0; i < dense->rows_no; ++i) {
+        for (j = 0; j < dense->cols_no; ++j) {
+            dense->vals[ARRAY_IND(i, j, dense->cols_no)] =
+                    generate_double(gen_seed, i, col_part_to_col(j, mpi_rank, num_processes, rows_no)); //rows_no == global cols_no
+        }
+    }
+}
+
+void split_comm(int mpi_rank, int repl_fact, int num_processes, MPI_Comm *sub_comm, int *sub_rank, int *sub_size) {
+    int color = mpi_rank / repl_fact;
+    MPI_Comm_split(MPI_COMM_WORLD, color, num_processes, sub_comm);
+
+    MPI_Comm_rank(*sub_comm, sub_rank);
+    MPI_Comm_size(*sub_comm, sub_size);
+}
+
 
 void alloc_sparse(sparse_type *st, int nnz, int rows_no, int cols_no) {
     st->A = malloc(nnz * sizeof(double));
@@ -91,6 +189,18 @@ void DEBUG_SPARSE(int k, sparse_type *msg) {
             printf("%.0lf ", m[i][j]);
         }
         printf("\n");
+    }
+}
+
+void DEBUG_SPARSE_CSR(int k, sparse_type *msg) {
+    printf("==========================PROCES %d==========================\n", k);
+    printf("row_no=%d, col_no=%d\n", msg->rows_no, msg->cols_no);
+    int i;
+    for (i = 0; i < msg->IA[msg->rows_no]; i++) {
+        printf("(A[%d]=%.0lf, JA[%d]=%d)\n", i, msg->A[i], i, msg->JA[i]);
+    }
+    for (i = 0; i < msg->rows_no + 1; i++){
+        printf("IA[%d]=%d\n", i, msg->IA[i]);
     }
 }
 
