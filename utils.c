@@ -186,7 +186,7 @@ void DEBUG_SPARSE(int k, sparse_type *msg) {
 
     for (i = 0; i < msg->rows_no; i++) {
         for (j = 0; j < msg->cols_no; j++) {
-            printf("%.0lf ", m[i][j]);
+            printf("%.3lf ", m[i][j]);
         }
         printf("\n");
     }

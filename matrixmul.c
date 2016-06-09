@@ -81,7 +81,6 @@ int main(int argc, char * argv[])
         //set columns size
         MPI_Bcast(&columns_no, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
     }
-
     //generate dense
     if (use_inner) {
         generate_dense(&B, A.cols_no, A.rows_no, mpi_rank, num_processes, gen_seed);
@@ -116,10 +115,12 @@ int main(int argc, char * argv[])
     comm_end = MPI_Wtime();
     comp_start = MPI_Wtime();
 
-//    sleep(mpi_rank);
 //    DEBUG_SPARSE(mpi_rank, &A_joined);
 //    DEBUG_DENSE(mpi_rank, &B_joined);
+//    sleep(mpi_rank);
+//    DEBUG_SPARSE_CSR(mpi_rank, &A_joined);
     if (use_inner) {
+//        if (mpi_rank == 1) {printf("jakto %d %d\n", A_joined.rows_no, A_joined.cols_no); DEBUG_SPARSE(mpi_rank, &A_joined);}
         compute_matrix_inner(exponent, sub_size, num_processes, mpi_rank, columns_no, &sub_comm, &C, &A_joined, &B_joined);
     } else {
         compute_matrix_blocked(exponent, sub_size, num_processes, mpi_rank, columns_no, &C, &A_joined, &B);
