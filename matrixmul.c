@@ -25,6 +25,7 @@ int main(int argc, char * argv[])
     double ge_element = 0;
     int count_ge = 0;
     int columns_no;
+    int freeBs = 0;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
@@ -94,10 +95,11 @@ int main(int argc, char * argv[])
     split_comm(mpi_rank, repl_fact, num_processes, &sub_comm, &sub_rank, &sub_size);
 
     ///broadcast in groups
-    sparse_type *As = malloc(sub_size * sizeof(sparse_type)); //TODO free
+    sparse_type *As = malloc(sub_size * sizeof(sparse_type));
     dense_type *Bs;
     if (use_inner) {
-        Bs = malloc(sub_size * sizeof(sparse_type)); //TODO free
+        Bs = malloc(sub_size * sizeof(sparse_type));
+        freeBs = 1;
         broadcast_A_B_parts_in_groups(mpi_rank, As, &A, Bs, &B, sub_size, &sub_comm);
     } else {
         broadcast_A_parts_in_groups(mpi_rank, As, &A, sub_size, &sub_comm);
@@ -143,6 +145,17 @@ int main(int argc, char * argv[])
         }
     }
 
+    int i;
+    for (i = 0; i < sub_size; i++) {
+        free_sparse(As+i);
+    }
+    free(As);
+    if (freeBs) {
+        for (i = 0; i < sub_size; i++) {
+            free_dense(Bs+i);
+        }
+        free(Bs);
+    }
     MPI_Comm_free(&sub_comm);
     MPI_Finalize();
     return 0;

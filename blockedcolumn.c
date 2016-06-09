@@ -171,9 +171,6 @@ void calculate_single_round_blocked(int row_B_offset, int sub_size, int num_proc
         for (i = A->IA[curr_row]; i < A->IA[curr_row + 1]; ++i) {
             for (k = 0; k < B->cols_no; ++k) {
                 int row_B = (A->JA[i] + row_B_offset) % A->rows_no; //liczba wierszy = liczba kolumn
-//                if (mpi_rank == 0) {printf("C(%d,%d)(%.0lf) += A(%d,%d)(%.0lf) * B(%d,%d)(%.0lf)\n", curr_row, k, C->vals[ARRAY_IND(curr_row, k, B->cols_no)],
-//                curr_row, A->JA[i], A->A[i],
-//                       row_B, k, B->vals[ARRAY_IND(row_B, k, B->cols_no)]); }//printf("ROW_B| A->JA[%d]=%d, row_B_offset=%d\n", i, A->JA[i], row_B_offset);}
                 C->vals[ARRAY_IND(curr_row, k, B->cols_no)] +=
                         A->A[i] * B->vals[ARRAY_IND(row_B, k, B->cols_no)];
             }
@@ -188,7 +185,6 @@ int get_offset(int round, int mpi_rank, int sub_size, int num_processes, int all
     int rank = sub_size * sub_offset_ind;
     int res = col_part_to_col(0, rank, num_processes, all_cols_no); //+1 grupa z indeksem 0
 
-//    if (mpi_rank == 0) printf("sub_ind=%d,offset=%d,rank=%d,res=%d\n", sub_ind, sub_offset_ind, rank, res);
     return res;
 }
 
@@ -205,13 +201,9 @@ void multiply_matrix_blocked(int sub_size, int num_processes, int mpi_rank, int 
     int source = (mpi_rank + sub_size) % num_processes;
 
     for (i = 0; i < c; i++) {
-//        printf("mpi_rank=%d, i=%d\n", mpi_rank, i);
         send_sparse_async(req, destination, As);
         int row_B_offset = get_offset(i, mpi_rank, sub_size, num_processes, all_cols_no, c);
-//        if (mpi_rank == 1) printf("i=%d, rank=%d, offset=%d\n", i, mpi_rank, row_B_offset);
-//        if (mpi_rank == 0) {printf("===A===");DEBUG_SPARSE(mpi_rank, As);printf("===B===");DEBUG_DENSE(mpi_rank, B);}
         calculate_single_round_blocked(row_B_offset, sub_size, num_processes, mpi_rank, C, As, B);
-//        if (mpi_rank == 0) {printf("===C===");DEBUG_DENSE(mpi_rank, C);}
         receive_sparse_rows_no(source, As->rows_no, recv);
         for (j = 0; j < 4; j++) {
             MPI_Wait(req + j, MPI_STATUS_IGNORE);
@@ -267,6 +259,7 @@ void gather_and_show_results(int mpi_rank, int num_processes, int all_cols_no, i
     MPI_Gatherv(part->vals, part->rows_no * part->cols_no, MPI_DOUBLE, all->vals, recvcounts,
                 displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
+    printf("%d %d\n", all[0].rows_no, all[0].rows_no);
     int j, k;
     for (i = 0; i < all[0].rows_no; ++i) { //liczba wierszy taka sama wszedzie
         for (k = 0; k < num_processes; ++k) {

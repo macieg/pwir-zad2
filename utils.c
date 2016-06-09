@@ -112,8 +112,8 @@ void free_sparse(sparse_type *st) {
     free(st->A);
     free(st->IA);
     free(st->JA);
-//    free(st); //TODO
 }
+
 
 void parse_csr(FILE *fd, sparse_type *st) {
     int nnz, rows_no, max_nnz_in_row, cols_no;

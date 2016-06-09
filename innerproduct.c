@@ -166,12 +166,10 @@ void join_dense_type_inner(int mpi_rank, int sub_size, int num_processes, dense_
     B->rows_no = Bs[0].rows_no; //liczba wierszy taka sama w kazdym wezle
     B->vals = malloc(B->rows_no * B->cols_no * sizeof(double)); //TODO free TODO WTF
 
-//    printf("mpi_rank = %d, sub_size = %d\n", mpi_rank, sub_size);
     cols_no = 0;
     for (i = 0; i < sub_size; i++) {
         for (j = 0; j < B->rows_no; j++) {
             for (k = 0; k < Bs[i].cols_no; k++) {
-//                if (mpi_rank == 2) {printf("i = %d, j = %d, B->rows_no = %d, k = %d, Bs[i].cols_no = %d\n", i, j, B->rows_no, k, Bs[i].cols_no);}
                 B->vals[ARRAY_IND(j, k+cols_no, B->cols_no)] = Bs[i].vals[ARRAY_IND(j, k, Bs[i].cols_no)];
             }
         }
@@ -181,36 +179,16 @@ void join_dense_type_inner(int mpi_rank, int sub_size, int num_processes, dense_
 
 void calculate_single_round_inner(int row_C_offset, int sub_size, int num_processes, int mpi_rank, int n,
                                   dense_type *C, sparse_type *A, dense_type *B) {
-//    if (mpi_rank == 1) {
-//        printf("kurwa %d %d\n", A->rows_no, A->cols_no);
-//        int j;
-//        for (j = 0; j < A->rows_no + 1; j++) {
-//            printf("%d: %d\n", j, A->JA[j]);
-//        }
-//        DEBUG_SPARSE(1, A);
-//        DEBUG_DENSE(1, B);
-//        DEBUG_DENSE(1, C);
-//    }
     int i, curr_row = 0, k;
     while (curr_row < A->rows_no) {
         for (i = A->IA[curr_row]; i < A->IA[curr_row + 1]; ++i) {
             for (k = 0; k < B->cols_no; ++k) {
-//                if (mpi_rank == 0) {printf("C(%d,%d)(%.0lf) += A(%d,%d)(%.0lf) * B(%d,%d)(%.0lf)\n",
-//                                           curr_row + row_C_offset, k, C->vals[ARRAY_IND(curr_row + row_C_offset, k, B->cols_no)],
-//                                           curr_row, A->JA[i], A->A[i],
-//                                           A->JA[i], k, B->vals[ARRAY_IND(A->JA[i], k, B->cols_no)]); }//printf("ROW_B| A->JA[%d]=%d, row_B_offset=%d\n", i, A->JA[i], row_B_offset);}
                 C->vals[ARRAY_IND((curr_row + row_C_offset) % n, k, B->cols_no)] +=
                         A->A[i] * B->vals[ARRAY_IND(A->JA[i], k, B->cols_no)];
             }
         }
         ++curr_row;
     }
-
-//    if (mpi_rank == 1) {
-//        DEBUG_SPARSE(mpi_rank, A);
-//        DEBUG_DENSE(mpi_rank, B);
-//        DEBUG_DENSE(mpi_rank, C);
-//    }
 }
 
 int first_index(int mpi_rank, int n, int num_processes) { //TODO utilsy
@@ -318,7 +296,6 @@ void compute_matrix_inner(int exponent, int sub_size, int num_processes, int mpi
             C->vals[i] = 0;
         }
         C->vals[0] = 0;
-        printf("mpi_rank = %d, rows_no = %d, cols_no = %d\n", mpi_rank, C->rows_no, C->cols_no);
         multiply_matrix_inner(sub_size, num_processes, mpi_rank, all_cols_no, sub_comm, C, A, B);
         copy_dense(C, B);
     }
@@ -369,6 +346,7 @@ void gather_and_show_results_inner(int mpi_rank, int sub_size, int num_processes
     MPI_Gatherv(C->vals, C->rows_no * C->cols_no, MPI_DOUBLE, all->vals, recvcounts,
                 displs, MPI_DOUBLE, 0, sub_comm);
 
+    printf("%d %d\n", all[0].rows_no, all[0].rows_no);
     int j, k;
     for (i = 0; i < all[0].rows_no; ++i) { //liczba wierszy taka sama wszedzie
         for (k = 0; k < np; ++k) {
