@@ -66,6 +66,7 @@ int main(int argc, char * argv[])
         fprintf(stderr, "error: missing seed or sparse matrix file; exiting\n");
         MPI_Finalize();
         free_sparse(sparse);
+        free(sparse);
         return 3;
     }
 
@@ -145,6 +146,7 @@ int main(int argc, char * argv[])
         }
     }
 
+    //free
     int i;
     for (i = 0; i < sub_size; i++) {
         free_sparse(As+i);
