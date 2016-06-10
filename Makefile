@@ -1,4 +1,4 @@
-CC      = /home/maciej/.openmpi/bin/mpicc
+CC      = mpicc
 CFLAGS  = -Wall -c --std=c99 -O3
 LDFLAGS = -Wall -O3 --std=c99
 ALL     = matrixmul
