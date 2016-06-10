@@ -159,7 +159,7 @@ int main(int argc, char * argv[])
             free_dense(Bs+i);
         }
         free(Bs);
-//        free_dense(&B_joined);
+        free_dense(&B_joined);
     }
     free_dense(&C);
     MPI_Comm_free(&sub_comm);

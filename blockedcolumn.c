@@ -133,10 +133,6 @@ void broadcast_A_parts_in_groups(int mpi_rank, sparse_type *As, sparse_type *A, 
 
     free(displs);
     free(recvcounts);
-    for (i = 0; i < sub_size; i++) {
-//        free(A[i].A);
-//        free(A[i].JA);
-    }
 }
 
 void join_sparse_type_blocked(int mpi_rank, int sub_size, int num_processes, sparse_type *As, sparse_type *A) {
