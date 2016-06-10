@@ -32,7 +32,6 @@ int main(int argc, char * argv[])
     MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 
     sparse_type* sparse;
-    sparse = malloc(sizeof(sparse_type)); //TODO free
     while ((option = getopt(argc, argv, "vis:f:c:e:g:")) != -1) {
         switch (option) {
             case 'v': show_results = 1;
@@ -42,6 +41,7 @@ int main(int argc, char * argv[])
             case 'f':
                 if ((mpi_rank) == ROOT) {
                     FILE *fd = fopen(optarg, "r");
+                    sparse = malloc(sizeof(sparse_type));
                     parse_csr(fd, sparse);
                     columns_no = sparse->cols_no;
                     close(fd);
@@ -152,12 +152,16 @@ int main(int argc, char * argv[])
         free_sparse(As+i);
     }
     free(As);
+    free(A_joined.A);
+    free(A_joined.JA);
     if (freeBs) {
         for (i = 0; i < sub_size; i++) {
             free_dense(Bs+i);
         }
         free(Bs);
+//        free_dense(&B_joined);
     }
+    free_dense(&C);
     MPI_Comm_free(&sub_comm);
     MPI_Finalize();
     return 0;

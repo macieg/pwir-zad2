@@ -22,13 +22,12 @@ void send_sparse_async(MPI_Request *req, int desination, sparse_type *msg) {
 void receive_sparse_rows_no(int source, int rows_no, sparse_type *msg) {
     int nnz;
     msg->rows_no = rows_no;
-    msg->IA = malloc((rows_no + 1) * sizeof(int)); //TODO free
-
+    msg->IA = malloc((rows_no + 1) * sizeof(int));
     MPI_Recv(msg->IA, rows_no + 1, MPI_INT, source, IA_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     nnz = msg->IA[rows_no];
 
-    msg->JA = malloc(nnz * sizeof(int)); //TODO free
-    msg->A = malloc(nnz * sizeof(double)); //TODO free
+    msg->JA = malloc(nnz * sizeof(int));
+    msg->A = malloc(nnz * sizeof(double));
 
     MPI_Recv(msg->JA, nnz, MPI_INT, source, JA_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     MPI_Recv(msg->A, nnz, MPI_DOUBLE, source, A_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -118,7 +117,7 @@ void free_sparse(sparse_type *st) {
 
 void parse_csr(FILE *fd, sparse_type *st) {
     int nnz, rows_no, max_nnz_in_row, cols_no;
-    fscanf(fd, "%d %d %d %d", &rows_no, &cols_no, &nnz, &max_nnz_in_row); //matrices are square, TODO max_nnz_in_row
+    fscanf(fd, "%d %d %d %d", &rows_no, &cols_no, &nnz, &max_nnz_in_row); //matrices are square
     alloc_sparse(st, nnz, rows_no, cols_no);
     int i;
     for (i = 0; i < nnz; i++) {
