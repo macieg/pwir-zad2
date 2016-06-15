@@ -83,6 +83,7 @@ int main(int argc, char * argv[])
         //set columns size
         MPI_Bcast(&columns_no, 1, MPI_INT, ROOT, MPI_COMM_WORLD);
     }
+
     //generate dense
     if (use_inner) {
         generate_dense(&B, A.cols_no, A.rows_no, mpi_rank, num_processes, gen_seed);

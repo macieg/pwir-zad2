@@ -74,18 +74,25 @@ void get_sparse_part_blocked(int mpi_rank, int num_processes, sparse_type *spars
         sparse_type *msgs = malloc(num_processes * sizeof(sparse_type));
         split_sparse_to_broadcast_blocked(msgs, sparse, num_processes);
         int i;
-        for (i = 0; i < num_processes; i++) {
+        for (i = 1; i < num_processes; i++) {
             send_sparse(i, msgs + i);
         }
-        for (i = 0; i < num_processes; i++) {
+        for (i = 1; i < num_processes; i++) {
             free_sparse(msgs + i);
         }
+
+	Apart->IA = malloc((msgs->rows_no + 1) * sizeof(int));
+	Apart->JA = malloc((msgs->IA[msgs->rows_no]) * sizeof(int));
+	Apart->A = malloc((msgs->IA[msgs->rows_no]) * sizeof(double));
+	Apart->A = msgs->A;
+	Apart->JA = msgs->JA;
+	Apart->IA = msgs->IA;
+	Apart->cols_no = msgs->cols_no;
+	Apart->rows_no = msgs->rows_no;
         free(msgs);
+    } else {
+    	receive_sparse(0, Apart);
     }
-
-
-    //receive A
-    receive_sparse(0, Apart);
 }
 
 void broadcast_A_parts_in_groups(int mpi_rank, sparse_type *As, sparse_type *A, int sub_size, MPI_Comm *sub_comm) {
