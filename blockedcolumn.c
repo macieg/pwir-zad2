@@ -81,17 +81,17 @@ void get_sparse_part_blocked(int mpi_rank, int num_processes, sparse_type *spars
             free_sparse(msgs + i);
         }
 
-	Apart->IA = malloc((msgs->rows_no + 1) * sizeof(int));
-	Apart->JA = malloc((msgs->IA[msgs->rows_no]) * sizeof(int));
-	Apart->A = malloc((msgs->IA[msgs->rows_no]) * sizeof(double));
-	Apart->A = msgs->A;
-	Apart->JA = msgs->JA;
-	Apart->IA = msgs->IA;
-	Apart->cols_no = msgs->cols_no;
-	Apart->rows_no = msgs->rows_no;
+        Apart->IA = malloc((msgs->rows_no + 1) * sizeof(int));
+        Apart->JA = malloc((msgs->IA[msgs->rows_no]) * sizeof(int));
+        Apart->A = malloc((msgs->IA[msgs->rows_no]) * sizeof(double));
+        Apart->A = msgs->A;
+        Apart->JA = msgs->JA;
+        Apart->IA = msgs->IA;
+        Apart->cols_no = msgs->cols_no;
+        Apart->rows_no = msgs->rows_no;
         free(msgs);
     } else {
-    	receive_sparse(0, Apart);
+        receive_sparse(0, Apart);
     }
 }
 
@@ -172,14 +172,14 @@ void join_sparse_type_blocked(int mpi_rank, int sub_size, int num_processes, spa
 }
 
 void calculate_single_round_blocked(int row_B_offset, int sub_size, int num_processes, int mpi_rank,
-                            dense_type *C, sparse_type *A, dense_type *B) {
+        dense_type *C, sparse_type *A, dense_type *B) {
     int i, curr_row = 0, k;
     while (curr_row < A->rows_no) {
         for (i = A->IA[curr_row]; i < A->IA[curr_row + 1]; ++i) {
             for (k = 0; k < B->cols_no; ++k) {
                 int row_B = (A->JA[i] + row_B_offset) % A->rows_no; //liczba wierszy = liczba kolumn
                 C->vals[ARRAY_IND(curr_row, k, B->cols_no)] +=
-                        A->A[i] * B->vals[ARRAY_IND(row_B, k, B->cols_no)];
+                    A->A[i] * B->vals[ARRAY_IND(row_B, k, B->cols_no)];
             }
         }
         ++curr_row;
@@ -196,7 +196,7 @@ int get_offset(int round, int mpi_rank, int sub_size, int num_processes, int all
 }
 
 void compute_matrix_blocked(int exponent, int sub_size, int num_processes, int mpi_rank, int all_cols_no,
-                    dense_type *C, sparse_type *As, dense_type *B) {
+        dense_type *C, sparse_type *As, dense_type *B) {
     alloc_dense(B->cols_no, B->rows_no, C);
     sparse_type *recv = malloc(sizeof(sparse_type));
     recv->rows_no = As->rows_no;
@@ -234,50 +234,59 @@ void compute_matrix_blocked(int exponent, int sub_size, int num_processes, int m
 void gather_and_show_results(int mpi_rank, int num_processes, int all_cols_no, int rows_no, dense_type *part) {
     if (mpi_rank != 0) {
         MPI_Gatherv(&(part->cols_no), 1, MPI_INT, NULL, NULL,
-                    NULL, MPI_INT, 0, MPI_COMM_WORLD);
-        MPI_Gatherv(part->vals, rows_no * part->cols_no, MPI_DOUBLE, NULL, NULL,
-                    NULL, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-        return;
+                NULL, MPI_INT, 0, MPI_COMM_WORLD);
     }
 
     dense_type all[num_processes];
+    double* vals = malloc(all_cols_no * all_cols_no * sizeof(double));
     int i;
     int displs[num_processes];
     int recvcounts[num_processes];
-    for (i = 0; i < num_processes; ++i) {
-        all[i].rows_no = rows_no;
-    }
 
-    for (i = 0; i < num_processes; ++i) {
-        recvcounts[i] = 1;
-        displs[i] = &(all[i].cols_no) - &(all[0].cols_no);
-    }
-    MPI_Gatherv(&(part->cols_no), 1, MPI_INT, &(all->cols_no), recvcounts,
+    if (mpi_rank == 0) { 
+        for (i = 0; i < num_processes; ++i) {
+            all[i].rows_no = rows_no;
+        }
+
+        for (i = 0; i < num_processes; ++i) {
+            recvcounts[i] = 1;
+            displs[i] = &(all[i].cols_no) - &(all[0].cols_no);
+        }
+        MPI_Gatherv(&(part->cols_no), 1, MPI_INT, &(all->cols_no), recvcounts,
                 displs, MPI_INT, 0, MPI_COMM_WORLD);
+    }
 
+    MPI_Barrier(MPI_COMM_WORLD);	
+    if (mpi_rank != 0) {
+        MPI_Gatherv(part->vals, rows_no * part->cols_no, MPI_DOUBLE, NULL, NULL,
+                NULL, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        return;
+    }
+
+    int offset = 0;
+    displs[0] = 0;
     for (i = 0; i < num_processes; ++i) {
         recvcounts[i] = all[i].cols_no * all[i].rows_no;
-        all[i].vals = malloc(all[i].cols_no * all[i].rows_no * sizeof(double));
-        displs[i] = all[i].vals - all[0].vals;
+        displs[i] = displs[0] + offset;
+        offset += recvcounts[i];
     }
-    MPI_Gatherv(part->vals, part->rows_no * part->cols_no, MPI_DOUBLE, all->vals, recvcounts,
-                displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    MPI_Gatherv(part->vals, part->rows_no * part->cols_no, MPI_DOUBLE, vals, recvcounts,
+            displs, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     printf("%d %d\n", all[0].rows_no, all[0].rows_no);
     int j, k;
     for (i = 0; i < all[0].rows_no; ++i) { //liczba wierszy taka sama wszedzie
         for (k = 0; k < num_processes; ++k) {
             for (j = 0; j < all[k].cols_no; ++j) {
-                printf("%.6lf ", all[k].vals[ARRAY_IND(i, j, all[k].cols_no)]);
+                printf("%.6lf ", vals[displs[k] + ARRAY_IND(i, j, all[k].cols_no)]);
             }
         }
         printf("\n");
     }
 
     //free
-    for (i = 0; i < num_processes; i++) {
-        free(all[i].vals);
-    }
+    free(vals);
 }
 
 void count_and_print_ge_elements(int mpi_rank, int num_processes, dense_type *C, double ge_elm) {
